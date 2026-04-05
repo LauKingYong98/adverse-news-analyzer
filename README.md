@@ -11,7 +11,7 @@ Given a company name (and optional aliases), the tool searches for recent news a
 
 ## Features
 
-- **Dual news sources** — Google News RSS (via GNews) + DuckDuckGo search, deduplicated by URL
+- **Google News RSS** — searches Google's public RSS feed directly, with date filtering and retry logic
 - **AI sentiment classification** — each article classified as Positive / Negative / Neutral from a fair valuation perspective
 - **Risk factor extraction** — specific risks identified for negative articles (e.g. "lawsuit", "regulatory action", "revenue decline")
 - **Bilingual support** — English and Chinese news search and analysis
@@ -26,8 +26,8 @@ Given a company name (and optional aliases), the tool searches for recent news a
 
 | Layer | Package | Role | API Key Required? |
 |-------|---------|------|:-:|
-| News Discovery | [`gnews`](https://github.com/ranahaani/GNews) | Google News RSS feed wrapper. Returns article titles, URLs, dates, publishers | No |
-| News Discovery | [`ddgs`](https://github.com/deedy5/duckduckgo_search) | DuckDuckGo news search. Returns titles, URLs, short body snippets | No |
+| News Discovery | [`feedparser`](https://github.com/kurtmckee/feedparser) | Parses Google News RSS feed directly. Returns article titles, URLs, dates, publishers | No |
+| URL Decoding | [`googlenewsdecoder`](https://github.com/SSujitX/google-news-url-decoder) | Decodes Google News redirect URLs to actual article URLs | No |
 | Article Extraction | [`newspaper4k`](https://github.com/AndyTheFactory/newspaper4k) | Downloads article URLs and extracts clean text from HTML pages | No |
 | Chinese Tokenization | [`jieba`](https://github.com/fxsjy/jieba) | Chinese text segmentation for newspaper4k article parsing | No |
 | LLM (Cloud) | [`anthropic`](https://docs.anthropic.com/) | Claude API for sentiment classification + risk factor extraction | Yes |
@@ -47,9 +47,9 @@ User Input
 +-------------------------------+
 |  Step 1: News Discovery       |
 |                               |
-|  GNews ----+                  |
-|            +--> Deduplicate   |
-|  DDG ------+    by URL        |
+|  Google News RSS              |
+|  -> Decode redirect URLs      |
+|  -> Deduplicate by URL        |
 |                               |
 |  Searches each alias in each  |
 |  language (en, zh)            |
@@ -65,7 +65,7 @@ User Input
 |  clean text, title, date      |
 |  Truncate to 500 chars        |
 |                               |
-|  Falls back to DDG snippet    |
+|  Falls back to title-only     |
 |  if parsing fails (403, etc.) |
 +-------------------------------+
         |
@@ -243,14 +243,16 @@ python -m adverse_news.cli -c "ByteDance" --model llama3.1
 
 The scraping happens in two distinct steps:
 
-### Step 1: News Discovery (GNews + DDG)
+### Step 1: News Discovery (Google News RSS)
 
-These tools **do not scrape websites**. They query search indexes:
+This step **does not scrape websites**. It queries Google's public RSS feed:
 
-- **GNews** reads Google's public RSS feed — returns titles, URLs, dates, and publisher names
-- **DDG** queries DuckDuckGo's search API — returns titles, URLs, and short body snippets
+- Fetches `https://news.google.com/rss/search?q=...` directly via `feedparser`
+- Uses `after:` and `before:` date operators for time filtering
+- Returns titles, URLs, dates, and publisher names
+- Google News redirect URLs are decoded to actual article URLs via `googlenewsdecoder`
 
-Both are queried for each alias in each language. Results are merged and deduplicated by URL.
+Each alias is searched in each language. Results are deduplicated by URL.
 
 ### Step 2: Article Text Extraction (newspaper4k)
 
@@ -268,8 +270,8 @@ Articles are parsed in parallel (8 threads by default) for speed.
 ## Limitations
 
 ### News Discovery
-- **GNews may return 0 results** — Google can rate-limit or block RSS requests, especially with repeated queries from the same IP. The tool retries up to 3 times with exponential backoff (2s/4s/8s), but persistent rate-limiting from Google may require waiting or switching networks.
-- **Google News RSS is the sole source** — the tool relies entirely on Google News RSS via GNews. If Google blocks your IP, no articles will be found. Adding alternative sources (NewsAPI.org, Brave Search) is a planned future improvement.
+- **Google News may return 0 results** — Google can rate-limit or block RSS requests, especially with repeated queries from the same IP. The tool retries up to 3 times with exponential backoff (2s/4s/8s), but persistent rate-limiting from Google may require waiting or switching networks.
+- **Google News RSS is the sole source** — the tool relies entirely on Google News RSS. If Google blocks your IP, no articles will be found. Adding alternative sources (NewsAPI.org, Brave Search) is a planned future improvement.
 - **Result quantity** — each search query returns up to 30 articles. For popular companies with multiple aliases, a configurable cap (default 50) keeps the newest articles and drops older ones.
 - **Short aliases are skipped** — aliases shorter than 3 characters (e.g., "WE") are excluded because they return too many irrelevant results.
 
@@ -304,8 +306,7 @@ adverse-news-analyzer/
 │   ├── analyzer.py             # Orchestrator: search -> parse -> classify -> report
 │   ├── scraper/
 │   │   ├── base.py             # Abstract NewsSource interface
-│   │   ├── gnews_source.py     # Google News RSS via GNews library
-│   │   ├── ddg_source.py       # DuckDuckGo news search via ddgs library
+│   │   ├── google_news_source.py # Google News RSS (direct feedparser + URL decoding)
 │   │   └── article_parser.py   # Full-text extraction via newspaper4k (parallel)
 │   ├── llm/
 │   │   ├── base.py             # LLMProvider Protocol (interface)

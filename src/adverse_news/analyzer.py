@@ -6,7 +6,7 @@ from adverse_news.llm.claude_provider import ClaudeProvider
 from adverse_news.llm.ollama_provider import OllamaProvider
 from adverse_news.models import AnalysisReport, CompanyInput, SentimentResult
 from adverse_news.scraper.article_parser import parse_articles
-from adverse_news.scraper.gnews_source import GNewsSource
+from adverse_news.scraper.google_news_source import GoogleNewsSource
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ def analyze_company(
             progress_callback(step, detail)
 
     llm = create_llm_provider(model=model, api_key=api_key)
-    gnews = GNewsSource(max_results=settings.max_articles_per_query)
+    source = GoogleNewsSource(max_results=settings.max_articles_per_query)
 
-    # Step 1: Search news via GNews
+    # Step 1: Search news via Google News RSS
     _progress("Searching news", f"'{company.name}' via Google News ({len(settings.languages)} language(s))...")
-    articles = gnews.search_company(company, languages=settings.languages)
+    articles = source.search_company(company, languages=settings.languages)
 
     if not articles:
         _progress("Complete", "No articles found.")

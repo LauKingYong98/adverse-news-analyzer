@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adverse-news-analyzer"
+version = "0.2.0"
+description = "Adverse news screening tool for fair valuation assessments"
+requires-python = ">=3.11"
+dependencies = [
+    "gnews>=0.3.7",
+    "ddgs>=9.0.0",
+    "newspaper4k>=0.9.3",
+    "jieba>=0.42",
+    "anthropic>=0.40.0",
+    "openpyxl>=3.1.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+ui = ["streamlit>=1.30", "pandas>=2.0"]
+local = ["ollama>=0.4"]
+all = ["streamlit>=1.30", "pandas>=2.0", "ollama>=0.4"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
+
+[project.scripts]
+adverse-news = "adverse_news.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100

@@ -120,6 +120,7 @@ with st.sidebar:
 
     st.divider()
     months = st.slider("Search Period (months)", 3, 18, 12)
+    max_articles = st.slider("Max Articles per Company", 20, 200, 50, step=10)
     languages = st.multiselect("Languages", ["en", "zh"], default=["en", "zh"])
 
     st.divider()
@@ -164,6 +165,7 @@ with tab_single:
                     company,
                     api_key=api_key if provider == "Claude (API)" else None,
                     model=model,
+                    max_articles=max_articles,
                     progress_callback=update_progress,
                 )
                 progress_bar.progress(1.0, text="Complete!")
@@ -188,7 +190,7 @@ with tab_single:
             st.subheader("Articles")
             df = _report_to_dataframe(report)
             styled = df.style.map(_color_sentiment, subset=["Sentiment"])
-            st.dataframe(styled, hide_index=True, width=None)
+            st.dataframe(styled, hide_index=True, width="stretch")
 
             excel_bytes = _report_to_excel_bytes(report)
             st.download_button(
@@ -241,6 +243,7 @@ with tab_batch:
                         company,
                         api_key=api_key if provider == "Claude (API)" else None,
                         model=model,
+                        max_articles=max_articles,
                     )
                     all_reports.append((company, report))
                 except Exception as e:
@@ -260,7 +263,7 @@ with tab_batch:
                     "Neutral": len(report.neutral_results),
                     "Top Risk Factors": ", ".join(report.top_risk_factors[:3]) or "None",
                 })
-            st.dataframe(pd.DataFrame(summary_rows), hide_index=True, width=None)
+            st.dataframe(pd.DataFrame(summary_rows), hide_index=True, width="stretch")
 
             # Downloads
             st.subheader("Download Reports")
@@ -285,6 +288,6 @@ with tab_batch:
                     if report.all_results:
                         df = _report_to_dataframe(report)
                         styled = df.style.map(_color_sentiment, subset=["Sentiment"])
-                        st.dataframe(styled, hide_index=True, width=None)
+                        st.dataframe(styled, hide_index=True, width="stretch")
                     else:
                         st.info("No articles found.")

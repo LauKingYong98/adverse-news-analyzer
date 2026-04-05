@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 from datetime import datetime
 
@@ -10,12 +11,13 @@ from adverse_news.scraper.base import NewsSource
 logger = logging.getLogger(__name__)
 
 MIN_ALIAS_LENGTH = 3
+MAX_RETRIES = 3
+BASE_RETRY_DELAY = 2.0  # seconds, doubles each retry
 
 
 class GNewsSource(NewsSource):
-    def __init__(self, max_results: int = 30, delay: float = 1.0):
+    def __init__(self, max_results: int = 30):
         self.max_results = max_results
-        self.delay = delay
 
     def search(self, query: str, period_months: int = 12, language: str = "en") -> list[ArticleData]:
         country = "US" if language == "en" else "CN"
@@ -26,12 +28,21 @@ class GNewsSource(NewsSource):
             max_results=self.max_results,
         )
 
-        logger.info(f"GNews search: '{query}' (lang={language}, period={period_months}m)")
-        try:
-            raw_results = gn.get_news(query)
-        except Exception as e:
-            logger.warning(f"GNews search failed for '{query}': {e}")
-            return []
+        raw_results = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            logger.info(f"GNews search: '{query}' (lang={language}, period={period_months}m, attempt {attempt}/{MAX_RETRIES})")
+            try:
+                raw_results = gn.get_news(query)
+                if raw_results:
+                    break
+                # Empty result — retry with backoff
+                delay = BASE_RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
+                logger.warning(f"GNews returned 0 results for '{query}', retrying in {delay:.1f}s...")
+                time.sleep(delay)
+            except Exception as e:
+                delay = BASE_RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
+                logger.warning(f"GNews error for '{query}': {e}, retrying in {delay:.1f}s...")
+                time.sleep(delay)
 
         articles = []
         for item in raw_results or []:
@@ -54,7 +65,8 @@ class GNewsSource(NewsSource):
                 )
             )
 
-        time.sleep(self.delay)
+        # Random delay between queries to avoid rate-limiting
+        time.sleep(random.uniform(2, 5))
         return articles
 
     def search_company(

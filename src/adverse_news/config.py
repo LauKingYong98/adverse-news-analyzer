@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-4-6"
     search_period_months: int = 12
     max_articles_per_query: int = 30
+    max_articles_total: int = 50
     languages: list[str] = ["en", "zh"]
     article_text_limit: int = 500
     batch_size: int = 10

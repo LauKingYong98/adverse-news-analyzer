@@ -6,7 +6,6 @@ from adverse_news.llm.claude_provider import ClaudeProvider
 from adverse_news.llm.ollama_provider import OllamaProvider
 from adverse_news.models import AnalysisReport, CompanyInput, SentimentResult
 from adverse_news.scraper.article_parser import parse_articles
-from adverse_news.scraper.ddg_source import DDGSource
 from adverse_news.scraper.gnews_source import GNewsSource
 
 logger = logging.getLogger(__name__)
@@ -28,9 +27,12 @@ def analyze_company(
     company: CompanyInput,
     api_key: str | None = None,
     model: str | None = None,
+    max_articles: int | None = None,
     progress_callback=None,
 ) -> AnalysisReport:
     """Run adverse news analysis pipeline: scrape -> parse -> classify -> report."""
+
+    max_articles = max_articles or settings.max_articles_total
 
     def _progress(step: str, detail: str = ""):
         logger.info(f"{step}: {detail}")
@@ -39,25 +41,22 @@ def analyze_company(
 
     llm = create_llm_provider(model=model, api_key=api_key)
     gnews = GNewsSource(max_results=settings.max_articles_per_query)
-    ddg = DDGSource(max_results=settings.max_articles_per_query)
 
-    # Step 1: Search news from both GNews + DDG, deduplicate by URL
-    _progress("Searching news", f"'{company.name}' via GNews + DuckDuckGo...")
-    gnews_articles = gnews.search_company(company, languages=settings.languages)
-    ddg_articles = ddg.search_company(company, languages=settings.languages)
-
-    seen_urls: set[str] = set()
-    articles: list = []
-    for a in gnews_articles + ddg_articles:
-        if a.url and a.url not in seen_urls:
-            seen_urls.add(a.url)
-            articles.append(a)
-
-    _progress("Searching news", f"Found {len(articles)} unique articles (GNews: {len(gnews_articles)}, DDG: {len(ddg_articles)})")
+    # Step 1: Search news via GNews
+    _progress("Searching news", f"'{company.name}' via Google News ({len(settings.languages)} language(s))...")
+    articles = gnews.search_company(company, languages=settings.languages)
 
     if not articles:
         _progress("Complete", "No articles found.")
         return AnalysisReport(company=company)
+
+    # Sort by date (newest first) and cap at max_articles
+    articles.sort(key=lambda a: a.published_date or __import__('datetime').datetime.min, reverse=True)
+    if len(articles) > max_articles:
+        logger.info(f"Capping articles from {len(articles)} to {max_articles} (newest first)")
+        articles = articles[:max_articles]
+
+    _progress("Searching news", f"Found {len(articles)} articles (capped at {max_articles})")
 
     # Step 2: Parse full text (parallel)
     _progress("Parsing articles", f"Extracting text from {len(articles)} articles...")

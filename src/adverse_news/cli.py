@@ -28,9 +28,9 @@ def _read_companies_from_excel(path: str) -> list[CompanyInput]:
     return companies
 
 
-def _run_single(company: CompanyInput, output_path: str, api_key: str | None, model: str | None = None):
+def _run_single(company: CompanyInput, output_path: str, api_key: str | None, model: str | None = None, max_articles: int | None = None):
     print(f"\n  Analyzing: {company.name}...")
-    report = analyze_company(company, api_key=api_key, model=model)
+    report = analyze_company(company, api_key=api_key, model=model, max_articles=max_articles)
     write_report(report, output_path)
 
     print(f"  Total articles:  {report.total_articles_found}")
@@ -62,6 +62,10 @@ def main():
     parser.add_argument(
         "--model", default=None,
         help="LLM model. claude-* uses API; others use Ollama (default: claude-sonnet-4-6)"
+    )
+    parser.add_argument(
+        "--max-articles", type=int, default=None,
+        help="Max articles to analyze per company (default: 50)"
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
 
@@ -103,7 +107,7 @@ def main():
             print(f"\n  [{idx}/{len(companies)}] {company.name}")
             output_path = output_dir / f"{company.name.replace(' ', '_')}_report.xlsx"
             try:
-                _run_single(company, str(output_path), args.api_key, args.model)
+                _run_single(company, str(output_path), args.api_key, args.model, args.max_articles)
             except Exception as e:
                 logging.error(f"Failed: {company.name}: {e}")
                 failed.append(company.name)
@@ -127,7 +131,7 @@ def main():
         print(f"{'='*60}")
 
         try:
-            _run_single(company, output_path, args.api_key, args.model)
+            _run_single(company, output_path, args.api_key, args.model, args.max_articles)
             print(f"\n{'='*60}")
             print(f"  Done!")
             print(f"{'='*60}\n")

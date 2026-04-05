@@ -261,20 +261,20 @@ For each URL from Step 1, [newspaper4k](https://github.com/AndyTheFactory/newspa
 3. Extracts: clean text, title, publish date, authors
 4. Text is truncated to 500 characters before being sent to the LLM
 
-If newspaper4k fails (403, timeout, paywall), the DDG body snippet is used as fallback — the title alone is usually sufficient for sentiment classification.
+If newspaper4k fails (403, timeout, paywall), the title alone is used for sentiment classification — this is usually sufficient for screening purposes.
 
 Articles are parsed in parallel (8 threads by default) for speed.
 
 ## Limitations
 
 ### News Discovery
-- **GNews may return 0 results** — Google can rate-limit or block RSS requests, especially with repeated queries from the same IP. DDG serves as fallback when this happens.
-- **DDG rate limits** — DuckDuckGo may return 403 errors under heavy use. The tool handles this gracefully and continues with available results.
-- **Result quantity** — each source returns up to 30 articles per query. For well-known companies with many aliases, total coverage is typically 20-60 unique articles.
+- **GNews may return 0 results** — Google can rate-limit or block RSS requests, especially with repeated queries from the same IP. The tool retries up to 3 times with exponential backoff (2s/4s/8s), but persistent rate-limiting from Google may require waiting or switching networks.
+- **Google News RSS is the sole source** — the tool relies entirely on Google News RSS via GNews. If Google blocks your IP, no articles will be found. Adding alternative sources (NewsAPI.org, Brave Search) is a planned future improvement.
+- **Result quantity** — each search query returns up to 30 articles. For popular companies with multiple aliases, a configurable cap (default 50) keeps the newest articles and drops older ones.
 - **Short aliases are skipped** — aliases shorter than 3 characters (e.g., "WE") are excluded because they return too many irrelevant results.
 
 ### Article Parsing
-- **Cloudflare-protected sites** return 403 (e.g., The Information, Seeking Alpha, Business Journals). These articles will only have title + DDG snippet for analysis.
+- **Cloudflare-protected sites** return 403 (e.g., The Information, Seeking Alpha, Bloomberg, Reuters). These articles will only have the title available for analysis.
 - **Paywalled sites** may return incomplete text or nothing at all.
 - **JavaScript-rendered pages** cannot be parsed — newspaper4k does not execute JavaScript.
 - **Typical success rate is 60-80%** — the remaining articles fall back to title-based classification.
